@@ -20,6 +20,7 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
+        conda update -n base -c defaults conda
         conda env update --file environment.yml --name CSE461
     - name: Lint with flake8
       run: |
@@ -32,4 +33,4 @@ jobs:
       run: |
         conda install pytest
         conda install pytest-timeout
-        pytest -h
+        pytest

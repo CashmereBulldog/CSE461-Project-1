@@ -13,6 +13,7 @@ Date: 10-17-23
 """
 import socket
 import select
+import time
 
 SERVER_ADDR = "attu2.cs.washington.edu"
 BIND_PORT = 12235
@@ -61,7 +62,7 @@ def stage_a():
     :return: A tuple containing the following integers -
         - num: An integer representing a numerical value from the server's response.
         - length: An integer representing a length value from the server's response.
-        - udp_port: An integer representing a UDP port value from the server's response.
+        - udp_port: An integer representing a port value from the server's response.
         - secret_a: An integer representing a secret key from the server's response.
 
     Note: If the connection to the server fails or there are issues receiving acks or the secret
@@ -108,7 +109,7 @@ def stage_b(num, length, udp_port, secret_a):
 
     :param num: An integer representing the number of UDP packets to send to the server.
     :param length: An integer representing the length of the payload in each packet.
-    :param udp_port: An integer representing the UDP port to which the socket connects.
+    :param udp_port: An integer representing the port to which the socket connects.
     :param secret_a: An integer representing a secret key to be included in the packet headers.
 
     :return: A tuple containing the following integers -
@@ -223,8 +224,57 @@ def stage_c(tcp_port, secret_b):
     print("Closing socket")
     sockC.close()
 
-    print("***** STAGE C *****")
+    print("***** STAGE C *****\n")
     return num2, len2, secret_c, c
+
+
+def stage_d(tcp_port, num2, len2, secret_c, c):
+    """ Stage D for Part 1
+    Sends num2 TCP packets to the server on port udp_port. Each data packet is size len2+4. Each
+    payload contains all bytes of the character c.
+
+    :param tcp_port: An integer representing the port to which the socket connects.
+    :param num2: An integer representing the number of TCP packets to send to the server.
+    :param len2: An integer representing the length of the payload in each packet.
+    :param secret_c: An integer representing a secret key to be included in the packet headers.
+    :param c: A character with which to fill the payload
+    
+    :return:
+        - secret_d: An integer representing a secret key from the server's response.
+
+    Note: If the connection to the server fails or there are issues receiving acks or the secret
+    response, the function will return None for the respective values.
+    """
+    print("***** STAGE D *****")
+
+    # Create new socket
+    sockD = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sockD.connect((SERVER_ADDR, tcp_port))
+
+    # Send num packets
+    for i in range(num2):
+        packet = generate_header(len2, secret_c) + (c.to_bytes(1, byteorder="big") * len2)
+
+        print ("Sending packet", i)
+        # Send message to server
+        sockD.send(packet)
+        time.sleep(0.5)
+
+
+    # Listen for secret response
+    secret_d = None
+    ready = select.select([sockD], [], [], MAXIMUM_TIMEOUT)
+    if ready[0]:
+        result = sockD.recv(16)
+        secret_d = int.from_bytes(result[12:16], byteorder='big')
+        print(f"secret_d: {secret_d}")
+
+    # Close socket
+    print("Closing socket")
+    sockD.close()
+
+    print ("***** STAGE D *****\n")
+    return secret_d
 
 
 def main():
@@ -232,6 +282,8 @@ def main():
     num, length, udp_port, secret_a = stage_a()
     tcp_port, secret_b = stage_b(num, length, udp_port, secret_a)
     num2, len2, secret_c, c = stage_c(tcp_port, secret_b)
+    secret_d = stage_d(tcp_port, num2, len2, secret_c, c)
+    print ("Part one finished with final secret_d of", secret_d)
 
 
 if __name__ == "__main__":

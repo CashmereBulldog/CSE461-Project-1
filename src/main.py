@@ -14,44 +14,13 @@ Date: 10-17-23
 import socket
 import select
 import time
+from utils import generate_header
 
 SERVER_ADDR = "attu2.cs.washington.edu"
 BIND_PORT = 12235
-STUDENT_ID_LAST_3 = 857
+STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
 MAXIMUM_TIMEOUT_STAGE_B = 0.5
-
-
-def generate_header(payload_len: int,
-                    psecret: int,
-                    step: int = 1,
-                    student_id: int = STUDENT_ID_LAST_3):
-    """
-    Helper function that generates header bytes for all TCP and UDP payloads sent to the server and
-    sent by the server.
-
-                0               1               2               3
-            0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |                          payload_len                          |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |                            psecret                            |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |              step             |   last 3 digits of student #  |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    :param payload_len: An integer representing the length of the payload to be sent.
-    :param psecret: A byte sequence representing a secret key to be included in the header.
-    :param step: An integer step number of the current protocol stage.
-    :param student_id: An integer of the last 3 digits of the student's ID number.
-
-
-    :returns: A byte sequence representing the constructed header, following the specified format.
-    """
-    return payload_len.to_bytes(4, byteorder='big') + \
-        psecret.to_bytes(4, byteorder='big') + \
-        step.to_bytes(2, byteorder='big') + \
-        student_id.to_bytes(2, byteorder='big')
 
 
 def stage_a():
@@ -73,7 +42,7 @@ def stage_a():
     num, length, udp_port, secret_a = None, None, None, None
 
     # Generate header
-    packet = generate_header(len(txt), 0) + txt
+    packet = generate_header(len(txt), 0, 1, STUDENT_ID) + txt
 
     # Create new socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -126,9 +95,7 @@ def stage_b(num, length, udp_port, secret_a):
 
     # Send num packets
     for i in range(num):
-        packet = generate_header(length + 4,
-                                 secret_a) + i.to_bytes(4,
-                                                        byteorder='big') + (b'\0' * length)
+        packet = generate_header(length + 4, secret_a) + i.to_bytes(4, byteorder='big') + (b'\0' * length)
 
         # Pad payload of size(len + 4) so that it is divisible by 4
         # TODO: write helper function to automatically pad packet --
@@ -200,7 +167,7 @@ def stage_c(tcp_port, secret_b):
     Technically the packet doesn't need to be made, but it doesn't really make
     sense that they would give us a secret_b that we don't need to send
     # Create packet
-    packet = generate_header(0, secret_b) # There is no body, length is 0
+    packet = generate_header(0, secret_b, 1, STUDENT_ID) # No body, length is 0
 
     # Send message to server
     sockC.send(packet)
@@ -253,7 +220,8 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
 
     # Send num packets
     for i in range(num2):
-        packet = generate_header(len2, secret_c) + (c.to_bytes(1, byteorder="big") * len2)
+        packet = generate_header(len2, secret_c, 1, STUDENT_ID) \
+                 + (c.to_bytes(1, byteorder="big") * len2)
 
         print ("Sending packet", i)
         # Send message to server

@@ -14,10 +14,9 @@ Date: 10-17-23
 import socket
 import select
 import time
-from utils import generate_header
+from utils import generate_header, BIND_PORT
 
 SERVER_ADDR = "attu2.cs.washington.edu"
-BIND_PORT = 12235
 STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
 MAXIMUM_TIMEOUT_STAGE_B = 0.5

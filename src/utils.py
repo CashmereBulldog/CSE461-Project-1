@@ -1,3 +1,5 @@
+BIND_PORT = 12235
+
 def generate_header(payload_len : int,
                     psecret : int,
                     step : int ,
@@ -28,3 +30,4 @@ def generate_header(payload_len : int,
            psecret.to_bytes(4, byteorder='big') + \
            step.to_bytes(2, byteorder='big') + \
            student_id.to_bytes(2, byteorder='big')
+

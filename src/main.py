@@ -1,9 +1,9 @@
 """
 main.py: A Python script for a network communication client.
 
-This script contains functions and logic for a network communication client that connects to a server
-on the address "attu2.cs.washington.edu" and performs a series of stages involving UDP and TCP
-communication. The stages include sending UDP packets, receiving acknowledgments, and extracting
+This script contains functions and logic for a network communication client that connects to a
+server on the address "attu2.cs.washington.edu" and performs a series of stages involving UDP and
+TCP communication. The stages include sending UDP packets, receiving acknowledgments, and extracting
 various pieces of information from server responses.
 
 The script also defines utility functions for generating header bytes for TCP and UDP payloads.
@@ -12,9 +12,10 @@ Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
 Date: 10-17-23
 """
 import socket
+
 import select
 import time
-from utils import generate_header, BIND_PORT
+from utils import generate_header, pad_packet, BIND_PORT
 
 SERVER_ADDR = "attu2.cs.washington.edu"
 STUDENT_ID = 857
@@ -94,15 +95,12 @@ def stage_b(num, length, udp_port, secret_a):
 
     # Send num packets
     for i in range(num):
-        packet = generate_header(length + 4, secret_a) + i.to_bytes(4, byteorder='big') + (b'\0' * length)
+        packet = generate_header(length + 4, secret_a, 1, STUDENT_ID) \
+                 + i.to_bytes(4, byteorder='big') \
+                 + (b'\0' * length)
 
         # Pad payload of size(len + 4) so that it is divisible by 4
-        # TODO: write helper function to automatically pad packet --
-        # packet_pad()
-        if len(packet) % 4 != 0:
-            print(f"Packet is invalid size of {len(packet)}")
-            packet += (b'\0' * (4 - len(packet) % 4))
-            print(f"Packet successfully padded to size {len(packet)}")
+        packet = pad_packet(packet, len(packet))
 
         ack_recieved = False
         print("sending packet", i)
@@ -178,7 +176,7 @@ def stage_c(tcp_port, secret_b):
         num2 = int.from_bytes(result[12:16], byteorder='big')
         len2 = int.from_bytes(result[16:20], byteorder='big')
         secret_c = int.from_bytes(result[20:24], byteorder='big')
-        c = result[24]
+        c = result[24].to_bytes(1, byteorder='big')
         print(f"num2:     {num2}\n"
               f"len2:     {len2}\n"
               f"secret_c: {secret_c}\n"
@@ -219,8 +217,8 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
 
     # Send num packets
     for i in range(num2):
-        packet = generate_header(len2, secret_c, 1, STUDENT_ID) \
-                 + (c.to_bytes(1, byteorder="big") * len2)
+        packet = generate_header(len2, secret_c, 1, STUDENT_ID) + (c * len2)
+        packet = pad_packet(packet, len(packet))
 
         print ("Sending packet", i)
         # Send message to server

@@ -31,3 +31,17 @@ def generate_header(payload_len : int,
            step.to_bytes(2, byteorder='big') + \
            student_id.to_bytes(2, byteorder='big')
 
+def pad_packet(packet : bytes, length : int) -> bytes:
+    """
+    Helper function that takes a packet and makes its length divisible by 4
+
+    :param: packet: the bytes object to transform
+    :param: length: the current length of the packet
+
+    :returns: A byte sequence that has been padded with extra zeros to be divisible by 4
+    """
+    if length % 4 == 0:
+        return packet
+    else:
+        packet += (b'\0' * (4 - length % 4))
+        return packet

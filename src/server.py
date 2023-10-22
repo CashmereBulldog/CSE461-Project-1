@@ -39,7 +39,6 @@ def stage_a():
         - student_id: The student id of the client to ensure we're getting the
           same messages
     """
-    print("***** STAGE A *****")
     num = length = udp_port = secret_a = student_id = None
 
     # Create UDP socket
@@ -47,7 +46,6 @@ def stage_a():
 
     # Bind to address and IP
     listener.bind(("localhost", BIND_PORT))
-    print ("Listening on port:", BIND_PORT)
 
     # Receive a single message
     message, client_addr = listener.recvfrom(24)
@@ -63,16 +61,11 @@ def stage_a():
                 + udp_port.to_bytes(4, byteorder='big') \
                 + secret_a.to_bytes(4, byteorder='big')
 
-        listener.sendto(ack, (client_addr, BIND_PORT))
+        listener.sendto(ack, client_addr)
     else:
-        student_id = -1
         print ("Client message was not formatted correctly")
 
-    # Close socket
-    print("Closing socket")
-    print("***** STAGE A *****\n")
-    listener.close()
-    return (num, length, udp_port, secret_a)
+    return (num, length, udp_port, secret_a, student_id)
 
 def main():
     """ Main function that calls the stages for the server """

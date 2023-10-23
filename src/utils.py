@@ -1,8 +1,14 @@
+"""
+utils.py: A Python script for defining helper functions for the protocol implementation.
+
+Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
+Date: 10-23-23
+"""
 BIND_PORT = 12235
 
 def generate_header(payload_len : int,
                     psecret : int,
-                    step : int ,
+                    step : int,
                     student_id : int):
     """
     Helper function that generates header bytes for all TCP and UDP payloads sent to the server and
@@ -42,6 +48,5 @@ def pad_packet(packet : bytes, length : int) -> bytes:
     """
     if length % 4 == 0:
         return packet
-    else:
-        packet += (b'\0' * (4 - length % 4))
-        return packet
+    packet += (b'\0' * (4 - length % 4))
+    return packet

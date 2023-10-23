@@ -17,7 +17,8 @@ import select
 import time
 from utils import generate_header, pad_packet, BIND_PORT
 
-SERVER_ADDR = "attu2.cs.washington.edu"
+#SERVER_ADDR = "attu2.cs.washington.edu"
+SERVER_ADDR = '127.0.0.1'
 STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
 MAXIMUM_TIMEOUT_STAGE_B = 0.5
@@ -48,7 +49,7 @@ def stage_a():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     # Send a packet to the given port
-    sock.sendto(packet, (SERVER_ADDR, BIND_PORT))
+    sock.sendto(packet, ('127.0.0.1', BIND_PORT))
 
     # Wait for a response back
     ready = select.select([sock], [], [], MAXIMUM_TIMEOUT)
@@ -94,6 +95,7 @@ def stage_b(num, length, udp_port, secret_a):
     sockB = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     # Send num packets
+    print("num is ", num)
     for i in range(num):
         packet = generate_header(length + 4, secret_a, 1, STUDENT_ID) \
                  + i.to_bytes(4, byteorder='big') \
@@ -103,7 +105,6 @@ def stage_b(num, length, udp_port, secret_a):
         packet = pad_packet(packet, len(packet))
 
         ack_recieved = False
-        print("sending packet", i)
 
         while not ack_recieved:
             try:
@@ -214,25 +215,56 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
     # Create new socket
     sockD = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sockD.connect((SERVER_ADDR, tcp_port))
+    print("connected sockD")
 
     # Send num packets
+    print("num2 is", num2)
     for i in range(num2):
         packet = generate_header(len2, secret_c, 1, STUDENT_ID) + (c * len2)
+        if len(packet) % 4 != 0:
+            print("Padding with c")
+            packet += (c * (4 - len(packet) % 4))
+        print("Sending packet", i)
         packet = pad_packet(packet, len(packet))
+        print(packet)
 
-        print ("Sending packet", i)
         # Send message to server
         sockD.send(packet)
         time.sleep(0.5)
+    print("finished sending packets")
+
 
 
     # Listen for secret response
+    print("Listening for secret response")
     secret_d = None
-    ready = select.select([sockD], [], [], MAXIMUM_TIMEOUT)
-    if ready[0]:
-        result = sockD.recv(16)
-        secret_d = int.from_bytes(result[12:16], byteorder='big')
-        print(f"secret_d: {secret_d}")
+    try:
+        ready = select.select([sockD], [], [], MAXIMUM_TIMEOUT)
+        print("Listening for secret response")
+        if ready[0]:
+                 result = sockD.recv(16)
+                 secret_d = int.from_bytes(result[12:16], byteorder='big')
+                 ack_recieved = True
+                 print("secret_d is ", secret_d)
+                 print(f"secret_d: {secret_d}")
+        else:
+            print("failure, never received a response")
+    except Exception as e:
+        print("an error occured:", e)
+        sockD.close()
+
+    # secret_d = None
+    # ack_recieved = False
+    # while not ack_recieved:
+    #     print("Listening for ack")
+    #     ready = select.select([sockD], [], [], MAXIMUM_TIMEOUT + 1000)
+    #     print("Listening for secret response")
+    #     if ready[0]:
+    #         result = sockD.recv(16)
+    #         secret_d = int.from_bytes(result[12:16], byteorder='big')
+    #         ack_recieved = True
+    #         print("secret_d is ", secret_d)
+    #         print(f"secret_d: {secret_d}")
 
     # Close socket
     print("Closing socket")

@@ -9,15 +9,14 @@ various pieces of information from server responses.
 The script also defines utility functions for generating header bytes for TCP and UDP payloads.
 
 Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
-Date: 10-17-23
+Date: 10-23-23
 """
 import socket
-
 import select
 import time
 from utils import generate_header, pad_packet, BIND_PORT
 
-#SERVER_ADDR = "attu2.cs.washington.edu"
+# SERVER_ADDR = "attu2.cs.washington.edu"
 SERVER_ADDR = '127.0.0.1'
 STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
@@ -49,7 +48,7 @@ def stage_a():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     # Send a packet to the given port
-    sock.sendto(packet, ('127.0.0.1', BIND_PORT))
+    sock.sendto(packet, (SERVER_ADDR, BIND_PORT))
 
     # Wait for a response back
     ready = select.select([sock], [], [], MAXIMUM_TIMEOUT)
@@ -92,14 +91,14 @@ def stage_b(num, length, udp_port, secret_a):
     print("***** STAGE B *****")
 
     # Create new socket
-    sockB = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock_b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     # Send num packets
     print("num is ", num)
     for i in range(num):
         packet = generate_header(length + 4, secret_a, 1, STUDENT_ID) \
-                 + i.to_bytes(4, byteorder='big') \
-                 + (b'\0' * length)
+            + i.to_bytes(4, byteorder='big') \
+            + (b'\0' * length)
 
         # Pad payload of size(len + 4) so that it is divisible by 4
         packet = pad_packet(packet, len(packet))
@@ -108,11 +107,11 @@ def stage_b(num, length, udp_port, secret_a):
 
         while not ack_recieved:
             try:
-                sockB.sendto(packet, (SERVER_ADDR, udp_port))
+                sock_b.sendto(packet, (SERVER_ADDR, udp_port))
                 # Listen for ack response
-                ready = select.select([sockB], [], [], MAXIMUM_TIMEOUT_STAGE_B)
+                ready = select.select([sock_b], [], [], MAXIMUM_TIMEOUT_STAGE_B)
                 if ready[0]:
-                    result = sockB.recv(16)
+                    result = sock_b.recv(16)
                     acked_packet_id = int.from_bytes(
                         result[12:16], byteorder='big')
                     if acked_packet_id == i:
@@ -125,9 +124,9 @@ def stage_b(num, length, udp_port, secret_a):
     # Listen for secret response
     tcp_port = None
     secret_b = None
-    ready = select.select([sockB], [], [], MAXIMUM_TIMEOUT)
+    ready = select.select([sock_b], [], [], MAXIMUM_TIMEOUT)
     if ready[0]:
-        result = sockB.recv(20)
+        result = sock_b.recv(20)
         tcp_port = int.from_bytes(result[12:16], byteorder='big')
         secret_b = int.from_bytes(result[16:20], byteorder='big')
         print(f"tcp_port: {tcp_port}\n"
@@ -135,7 +134,7 @@ def stage_b(num, length, udp_port, secret_a):
 
     # Close socket
     print("Closing socket")
-    sockB.close()
+    sock_b.close()
 
     print("***** STAGE B *****\n")
     return tcp_port, secret_b
@@ -158,8 +157,8 @@ def stage_c(tcp_port, secret_b):
     num2, len2, secret_c, c = None, None, None, None
 
     # Connect socket
-    sockC = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sockC.connect((SERVER_ADDR, tcp_port))
+    sock_c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock_c.connect((SERVER_ADDR, tcp_port))
 
     """
     Technically the packet doesn't need to be made, but it doesn't really make
@@ -168,12 +167,12 @@ def stage_c(tcp_port, secret_b):
     packet = generate_header(0, secret_b, 1, STUDENT_ID) # No body, length is 0
 
     # Send message to server
-    sockC.send(packet)
+    sock_c.send(packet)
     """
 
-    ready = select.select([sockC], [], [], MAXIMUM_TIMEOUT)
+    ready = select.select([sock_c], [], [], MAXIMUM_TIMEOUT)
     if ready[0]:
-        result = sockC.recv(28)
+        result = sock_c.recv(28)
         num2 = int.from_bytes(result[12:16], byteorder='big')
         len2 = int.from_bytes(result[16:20], byteorder='big')
         secret_c = int.from_bytes(result[20:24], byteorder='big')
@@ -187,7 +186,7 @@ def stage_c(tcp_port, secret_b):
 
     # Close socket
     print("Closing socket")
-    sockC.close()
+    sock_c.close()
 
     print("***** STAGE C *****\n")
     return num2, len2, secret_c, c
@@ -203,7 +202,7 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
     :param len2: An integer representing the length of the payload in each packet.
     :param secret_c: An integer representing a secret key to be included in the packet headers.
     :param c: A character with which to fill the payload
-    
+
     :return:
         - secret_d: An integer representing a secret key from the server's response.
 
@@ -213,9 +212,9 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
     print("***** STAGE D *****")
 
     # Create new socket
-    sockD = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sockD.connect((SERVER_ADDR, tcp_port))
-    print("connected sockD")
+    sock_d = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock_d.connect((SERVER_ADDR, tcp_port))
+    print("connected sock_d")
 
     # Send num packets
     print("num2 is", num2)
@@ -229,38 +228,36 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
         print(packet)
 
         # Send message to server
-        sockD.send(packet)
+        sock_d.send(packet)
         time.sleep(0.5)
     print("finished sending packets")
-
-
 
     # Listen for secret response
     print("Listening for secret response")
     secret_d = None
     try:
-        ready = select.select([sockD], [], [], MAXIMUM_TIMEOUT)
+        ready = select.select([sock_d], [], [], MAXIMUM_TIMEOUT)
         print("Listening for secret response")
         if ready[0]:
-                 result = sockD.recv(16)
-                 secret_d = int.from_bytes(result[12:16], byteorder='big')
-                 ack_recieved = True
-                 print("secret_d is ", secret_d)
-                 print(f"secret_d: {secret_d}")
+            result = sock_d.recv(16)
+            secret_d = int.from_bytes(result[12:16], byteorder='big')
+            ack_recieved = True
+            print("secret_d is ", secret_d)
+            print(f"secret_d: {secret_d}")
         else:
             print("failure, never received a response")
     except Exception as e:
         print("an error occured:", e)
-        sockD.close()
+        sock_d.close()
 
     # secret_d = None
     # ack_recieved = False
     # while not ack_recieved:
     #     print("Listening for ack")
-    #     ready = select.select([sockD], [], [], MAXIMUM_TIMEOUT + 1000)
+    #     ready = select.select([sock_d], [], [], MAXIMUM_TIMEOUT + 1000)
     #     print("Listening for secret response")
     #     if ready[0]:
-    #         result = sockD.recv(16)
+    #         result = sock_d.recv(16)
     #         secret_d = int.from_bytes(result[12:16], byteorder='big')
     #         ack_recieved = True
     #         print("secret_d is ", secret_d)
@@ -268,9 +265,9 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
 
     # Close socket
     print("Closing socket")
-    sockD.close()
+    sock_d.close()
 
-    print ("***** STAGE D *****\n")
+    print("***** STAGE D *****\n")
     return secret_d
 
 
@@ -280,7 +277,7 @@ def main():
     tcp_port, secret_b = stage_b(num, length, udp_port, secret_a)
     num2, len2, secret_c, c = stage_c(tcp_port, secret_b)
     secret_d = stage_d(tcp_port, num2, len2, secret_c, c)
-    print ("Part one finished with final secret_d of", secret_d)
+    print("Part one finished with final secret_d of", secret_d)
 
 
 if __name__ == "__main__":

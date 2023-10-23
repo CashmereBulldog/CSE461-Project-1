@@ -1,6 +1,11 @@
 import socket
 from random import randint
-from utils import generate_header, BIND_PORT
+from random import choice
+from string import ascii_letters
+from urllib import response
+from utils import generate_header, BIND_PORT, pad_packet
+
+MAXIMUM_TIMEOUT = 3  # Socket will close if no response is recieved for this many seconds
 
 def check_header(header : bytes,
                  expected_length : int,
@@ -66,6 +71,48 @@ def stage_a():
         print ("Client message was not formatted correctly")
 
     return (num, length, udp_port, secret_a, student_id)
+
+def stage_c(tcp_port : int, secret_b : int, student_id : int):
+    """ Stage C for Part 2.
+    
+    Server sends three integers: num2, len2, secretC, and a character c
+
+    :param tcp_port: An integer representing the TCP port to connect to on the server.
+    :param secret_b: An integer representing a secret key to be included in the packet headers.
+    """
+    # Create TCP socket
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    
+    # Bind to address and IP
+    listener.bind(("localhost", tcp_port))
+    listener.listen(MAXIMUM_TIMEOUT)
+    
+    while True:
+        try:
+            connection, address = listener.accept()
+            print("Connection from ", address)
+
+            # Send data back to the client
+            num2, len2, secret_c, c = randint(0, 20), randint(0, 100), randint(0, 256), choice(ascii_letters)
+            print("Random generated:\n"
+                  f"num2:     {num2}\n"
+                  f"len2:     {len2}\n"
+                  f"secret_c: {secret_c}\n"
+                  f"c:        {c}")
+            response = generate_header(13, secret_b, step=2, student_id=student_id) \
+                    + num2.to_bytes(4, byteorder='big') \
+                    + len2.to_bytes(4, byteorder='big') \
+                    + secret_c.to_bytes(4, byteorder='big') \
+                    + ord(c).to_bytes(1, byteorder='big')
+            response = pad_packet(response, len(response))
+            connection.send(response)
+            
+            # Call Stage D after successful conversation, not closing socket
+            # stage_d(num2, len2, secret_c, c, connection)
+        except:
+            # Close the connection
+            listener.close()
+    
 
 def main():
     """ Main function that calls the stages for the server """

@@ -67,10 +67,15 @@ def stage_a():
                 + secret_a.to_bytes(4, byteorder='big')
 
         listener.sendto(ack, client_addr)
+        print(f"num:      {num}\n"
+              f"length:   {length}\n"
+              f"udp_port: {udp_port}\n"
+              f"secret_a: {secret_a}")
     else:
         print ("Client message was not formatted correctly")
 
     return (num, length, udp_port, secret_a, student_id)
+
 
 def stage_c(tcp_port : int, secret_b : int, student_id : int):
     """ Stage C for Part 2.
@@ -113,6 +118,29 @@ def stage_c(tcp_port : int, secret_b : int, student_id : int):
             # Close the connection
             listener.close()
     
+
+def stage_d(num2, len2, secret_c, c, student_id, connection):
+    packets_received = 0
+    valid = True
+    while packets_received < num2:
+        msg = connection.recv(12 + len2) # Header plus length
+        if check_header(msg[:12], len2, secret_c):
+            valid &= msg[12:] != c * len2
+            if not valid: break
+        else:
+            print ("Client message was not formatted correctly")
+
+    if valid:
+        secret_d = randint(0, 256)
+        ack = generate_header(4, secret_c, step=2, student_id=student_id) \
+                + secret_d.to_bytes(4, byteorder='big')
+        connection.send(ack)
+
+    print ("Closing TCP connection")
+    connection.close()
+
+    print ("Done!")
+
 
 def main():
     """ Main function that calls the stages for the server """

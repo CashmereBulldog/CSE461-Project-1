@@ -13,11 +13,10 @@ Date: 10-23-23
 """
 import socket
 import select
-import time
 from utils import generate_header, pad_packet, BIND_PORT
 
 # SERVER_ADDR = "attu2.cs.washington.edu"
-SERVER_ADDR = '127.0.0.1'
+SERVER_ADDR = 'localhost'
 STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
 MAXIMUM_TIMEOUT_STAGE_B = 0.5
@@ -51,14 +50,12 @@ def stage_a():
     bytes_sent = 0
     while bytes_sent == 0:
         bytes_sent = sock.sendto(packet, (SERVER_ADDR, BIND_PORT))
-    print("Sent hello world")
 
     # Wait for a response back
     ready = select.select([sock], [], [], MAXIMUM_TIMEOUT)
     response_received = False
     while not response_received:
         if ready[0]:
-            print("Recieved response")
             response_received = True
             result = sock.recv(28)
             num = int.from_bytes(result[12:16], byteorder='big')
@@ -71,7 +68,6 @@ def stage_a():
                   f"secret_a: {secret_a}")
 
     # Close socket
-    print("Closing socket, client")
     print("***** STAGE A *****\n")
     sock.close()
     return (num, length, udp_port, secret_a)
@@ -99,8 +95,8 @@ def stage_b(num, length, udp_port, secret_a):
     sock_b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     # Send num packets
-    print("num is ", num)
     for i in range(num):
+        print ("Sending packet", i)
         packet = generate_header(length + 4, secret_a, 1, STUDENT_ID) \
             + i.to_bytes(4, byteorder='big') \
             + (b'\0' * length)
@@ -118,14 +114,13 @@ def stage_b(num, length, udp_port, secret_a):
                 # Listen for ack response
                 ready = select.select([sock_b], [], [], MAXIMUM_TIMEOUT_STAGE_B)
                 if ready[0]:
-                    result = None
+                    acked_packet_id = -1
                     try:
                         result = sock_b.recv(16)
-                        print("Received data from server ", result)
+                        acked_packet_id = int.from_bytes(result[12:16], byteorder='big')
                     except Exception as e:
                         print("The error on trying to receive data was ", e)
-                    acked_packet_id = int.from_bytes(
-                        result[12:16], byteorder='big')
+
                     if acked_packet_id == i:
                         ack_received = True
                     else:
@@ -145,7 +140,6 @@ def stage_b(num, length, udp_port, secret_a):
               f"secret_b: {secret_b}")
 
     # Close socket
-    print("Closing socket")
     sock_b.close()
 
     print("***** STAGE B *****\n")
@@ -170,7 +164,6 @@ def stage_c(tcp_port, secret_b):
 
     # Connect socket
     sock_c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print("Client, trying to connect to tcp_port ", tcp_port)
     sock_c.connect((SERVER_ADDR, tcp_port))
 
     """
@@ -197,15 +190,11 @@ def stage_c(tcp_port, secret_b):
     else:
         print("Did not receive TCP response")
 
-    # Close socket
-    print("Closing socket")
-    sock_c.close()
-
     print("***** STAGE C *****\n")
-    return num2, len2, secret_c, c
+    return num2, len2, secret_c, c, sock_c
 
 
-def stage_d(tcp_port, num2, len2, secret_c, c):
+def stage_d(tcp_port, num2, len2, secret_c, c, connection):
     """ Stage D for Part 1
     Sends num2 TCP packets to the server on port udp_port. Each data packet is size len2+4. Each
     payload contains all bytes of the character c.
@@ -225,37 +214,26 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
     print("***** STAGE D *****")
 
     # Create new socket
-    sock_d = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock_d.connect((SERVER_ADDR, tcp_port))
-    print("connected sock_d")
+    sock_d = connection
 
     # Send num packets
-    print("num2 is", num2)
     for i in range(num2):
         packet = generate_header(len2, secret_c, 1, STUDENT_ID) + (c * len2)
         if len(packet) % 4 != 0:
-            print("Padding with c")
             packet += (c * (4 - len(packet) % 4))
         print("Sending packet", i)
         packet = pad_packet(packet, len(packet))
-        print(packet)
 
         # Send message to server
         sock_d.send(packet)
-        time.sleep(0.5)
-    print("finished sending packets")
 
     # Listen for secret response
-    print("Listening for secret response")
     secret_d = None
     try:
         ready = select.select([sock_d], [], [], MAXIMUM_TIMEOUT)
-        print("Listening for secret response")
         if ready[0]:
             result = sock_d.recv(16)
             secret_d = int.from_bytes(result[12:16], byteorder='big')
-            ack_recieved = True
-            print("secret_d is ", secret_d)
             print(f"secret_d: {secret_d}")
         else:
             print("failure, never received a response")
@@ -263,34 +241,18 @@ def stage_d(tcp_port, num2, len2, secret_c, c):
         print("an error occurred:", e)
         sock_d.close()
 
-    # secret_d = None
-    # ack_recieved = False
-    # while not ack_recieved:
-    #     print("Listening for ack")
-    #     ready = select.select([sock_d], [], [], MAXIMUM_TIMEOUT + 1000)
-    #     print("Listening for secret response")
-    #     if ready[0]:
-    #         result = sock_d.recv(16)
-    #         secret_d = int.from_bytes(result[12:16], byteorder='big')
-    #         ack_recieved = True
-    #         print("secret_d is ", secret_d)
-    #         print(f"secret_d: {secret_d}")
-
     # Close socket
-    print("Closing socket")
     sock_d.close()
 
     print("***** STAGE D *****\n")
-    return secret_d
 
 
 def main():
     """ Main function that calls the stages for the client """
     num, length, udp_port, secret_a = stage_a()
     tcp_port, secret_b = stage_b(num, length, udp_port, secret_a)
-    num2, len2, secret_c, c = stage_c(tcp_port, secret_b)
-    secret_d = stage_d(tcp_port, num2, len2, secret_c, c)
-    print("Part one finished with final secret_d of", secret_d)
+    num2, len2, secret_c, c, sock_c = stage_c(tcp_port, secret_b)
+    stage_d(tcp_port, num2, len2, secret_c, c, sock_c)
 
 
 if __name__ == "__main__":

@@ -71,11 +71,9 @@ def stage_a():
                   + secret_a.to_bytes(4, byteorder='big')
 
             listener.sendto(ack, client_addr)
-            print(f"num:      {num}\n"
-                  f"length:   {length}\n"
-                  f"udp_port: {udp_port}\n"
-                  f"secret_a: {secret_a}")
-            stage_b(num, length, udp_port, secret_a, student_id)
+            print ("Received part a request from student id", student_id)
+            new_thread = threading.Thread(target=stage_b, args=(num, length, udp_port, secret_a, student_id))
+            new_thread.start()
         else:
             print("Client message was not formatted correctly")
 

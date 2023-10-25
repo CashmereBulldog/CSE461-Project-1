@@ -12,7 +12,9 @@ Date: 10-25-23
 """
 import socket
 import sys
+sys.path.append("..")
 import select
+#from src import generate_header, pad_packet, BIND_PORT
 from utils import generate_header, pad_packet, BIND_PORT
 
 ATTU_SERVER_ADDR = "attu2.cs.washington.edu"

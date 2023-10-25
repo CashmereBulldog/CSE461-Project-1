@@ -16,6 +16,8 @@ Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
 Date: 10-25-23
 """
 import socket
+import sys
+sys.path.append("..")
 from random import randint, choice
 from string import ascii_letters
 import threading

@@ -1,32 +1,33 @@
+#!/usr/bin/env python
 """
-main.py: A Python script for a network communication client.
+client.py: A Python script for a network communication client.
 
 This script contains functions and logic for a network communication client that connects to a
 server on the address "attu2.cs.washington.edu" and performs a series of stages involving UDP and
 TCP communication. The stages include sending UDP packets, receiving acknowledgments, and extracting
 various pieces of information from server responses.
 
-The script also defines utility functions for generating header bytes for TCP and UDP payloads.
-
 Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
-Date: 10-23-23
+Date: 10-25-23
 """
 import socket
+import sys
 import select
 from utils import generate_header, pad_packet, BIND_PORT
 
-# SERVER_ADDR = "attu2.cs.washington.edu"
-SERVER_ADDR = 'localhost'
+ATTU_SERVER_ADDR = "attu2.cs.washington.edu"
 STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
 MAXIMUM_TIMEOUT_STAGE_B = 0.5
 
 
-def stage_a():
+def stage_a(address):
     """ Stage A for Part 1.
     Sends a single UDP packet containing the string "hello world" without the quotation marks to
-    attu2.cs.washington.edu on port 12235
-
+    'address' on port 12235
+    
+    :param address: The address that the client is connecting to
+    
     :return: A tuple containing the following integers -
         - num: An integer representing a numerical value from the server's response.
         - length: An integer representing a length value from the server's response.
@@ -49,7 +50,7 @@ def stage_a():
     # Send a packet to the given port
     bytes_sent = 0
     while bytes_sent == 0:
-        bytes_sent = sock.sendto(packet, (SERVER_ADDR, BIND_PORT))
+        bytes_sent = sock.sendto(packet, (address, BIND_PORT))
 
     # Wait for a response back
     ready = select.select([sock], [], [], MAXIMUM_TIMEOUT)
@@ -72,11 +73,12 @@ def stage_a():
     sock.close()
     return (num, length, udp_port, secret_a)
 
-def stage_b(num, length, udp_port, secret_a):
+def stage_b(address, num, length, udp_port, secret_a):
     """ Stage B for Part 1
     Sends num UDP packets to the server on port udp_port. Each data packet is size length+4. Each
     payload contains all zeros.
 
+    :param address: The address that the client is connecting to
     :param num: An integer representing the number of UDP packets to send to the server.
     :param length: An integer representing the length of the payload in each packet.
     :param udp_port: An integer representing the port to which the socket connects.
@@ -102,7 +104,7 @@ def stage_b(num, length, udp_port, secret_a):
             + (b'\0' * length)
 
         # Pad payload of size(len + 4) so that it is divisible by 4
-        packet = pad_packet(packet, len(packet))
+        packet = pad_packet(packet)
 
         ack_received = False
 
@@ -110,7 +112,7 @@ def stage_b(num, length, udp_port, secret_a):
             try:
                 bytes_sent = 0
                 while bytes_sent == 0:
-                    bytes_sent = sock_b.sendto(packet, (SERVER_ADDR, udp_port))
+                    bytes_sent = sock_b.sendto(packet, (address, udp_port))
                 # Listen for ack response
                 ready = select.select([sock_b], [], [], MAXIMUM_TIMEOUT_STAGE_B)
                 if ready[0]:
@@ -146,10 +148,11 @@ def stage_b(num, length, udp_port, secret_a):
     return tcp_port, secret_b
 
 
-def stage_c(tcp_port, secret_b):
+def stage_c(address, tcp_port):
     """ Stage C for Part 1
     Server sends three integers: num2, len2, secretC, and a character c
 
+    :param address: The address that the client is connecting to
     :param tcp_port: An integer representing the TCP port to connect to on the server.
     :param secret_a: An integer representing a secret key to be included in the packet headers.
 
@@ -164,17 +167,7 @@ def stage_c(tcp_port, secret_b):
 
     # Connect socket
     sock_c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock_c.connect((SERVER_ADDR, tcp_port))
-
-    """
-    Technically the packet doesn't need to be made, but it doesn't really make
-    sense that they would give us a secret_b that we don't need to send
-    # Create packet
-    packet = generate_header(0, secret_b, 1, STUDENT_ID) # No body, length is 0
-
-    # Send message to server
-    sock_c.send(packet)
-    """
+    sock_c.connect((address, tcp_port))
 
     ready = select.select([sock_c], [], [], MAXIMUM_TIMEOUT)
     if ready[0]:
@@ -196,7 +189,7 @@ def stage_c(tcp_port, secret_b):
 
 def stage_d(tcp_port, num2, len2, secret_c, c, connection):
     """ Stage D for Part 1
-    Sends num2 TCP packets to the server on port udp_port. Each data packet is size len2+4. Each
+    Sends num2 TCP packets to the server on port udp_port. Each data packet is size len2 + 4. Each
     payload contains all bytes of the character c.
 
     :param tcp_port: An integer representing the port to which the socket connects.
@@ -213,7 +206,7 @@ def stage_d(tcp_port, num2, len2, secret_c, c, connection):
     """
     print("***** STAGE D *****")
 
-    # Create new socket
+    # Pass in socket from stage c
     sock_d = connection
 
     # Send num packets
@@ -222,7 +215,7 @@ def stage_d(tcp_port, num2, len2, secret_c, c, connection):
         if len(packet) % 4 != 0:
             packet += (c * (4 - len(packet) % 4))
         print("Sending packet", i)
-        packet = pad_packet(packet, len(packet))
+        packet = pad_packet(packet)
 
         # Send message to server
         sock_d.send(packet)
@@ -234,26 +227,39 @@ def stage_d(tcp_port, num2, len2, secret_c, c, connection):
         if ready[0]:
             result = sock_d.recv(16)
             secret_d = int.from_bytes(result[12:16], byteorder='big')
-            print(f"secret_d: {secret_d}")
         else:
-            print("failure, never received a response")
+            print("Did not receive TCP response")
     except Exception as e:
         print("an error occurred:", e)
         sock_d.close()
 
     # Close socket
     sock_d.close()
-
+    
+    print(f"secret_d: {secret_d}")
     print("***** STAGE D *****\n")
+    return secret_d
 
 
 def main():
     """ Main function that calls the stages for the client """
-    num, length, udp_port, secret_a = stage_a()
-    tcp_port, secret_b = stage_b(num, length, udp_port, secret_a)
-    num2, len2, secret_c, c, sock_c = stage_c(tcp_port, secret_b)
-    stage_d(tcp_port, num2, len2, secret_c, c, sock_c)
-
+    if len(sys.argv) == 1:
+        # Default to connecting to attu2.cs.washington.edu
+        address = ATTU_SERVER_ADDR
+    elif len(sys.argv) == 2:
+        address = sys.argv[1]
+    else:
+        print("Usage: python client.py [server_address=attu2.cs.washington.edu]")
+        return
+    num, length, udp_port, secret_a = stage_a(address)
+    tcp_port, secret_b = stage_b(address, num, length, udp_port, secret_a)
+    num2, len2, secret_c, c, sock_c = stage_c(address, tcp_port)
+    secret_d = stage_d(tcp_port, num2, len2, secret_c, c, sock_c)
+    print(f"Final list of secrets:\n"
+          f"   Secret A: {secret_a}\n"
+          f"   Secret B: {secret_b}\n"
+          f"   Secret C: {secret_c}\n"
+          f"   Secret D: {secret_d}")
 
 if __name__ == "__main__":
     main()

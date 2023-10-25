@@ -1,39 +1,28 @@
+#!/usr/bin/env python
+"""
+server.py: A Python script for a web server.
+
+The server's task is to verify whether the client adheres to the protocol and send a response only to the valid client.
+    1. The server will start listening on port 12235.
+    2. The server can handle multiple clients at a time.
+    3. The server verifies the header of every packet received and close any open sockets to the client and/or fail to respond to the client if:
+        - unexpected number of buffers have been received
+        - unexpected payload, or length of packet or length of packet payload has been received
+        - the server does not receive any packets from the client for 3 seconds
+        - the server does not receive the correct secret
+    4. The Server responds to the client in four stages. In each stage, the server should randomly generate a secret to be sent to the client.
+
+Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
+Date: 10-25-23
+"""
 import socket
 from random import randint, choice
 from string import ascii_letters
 import threading
 
-from utils import generate_header, BIND_PORT, pad_packet
+from utils import generate_header, pad_packet, check_header, BIND_PORT
 
 MAXIMUM_TIMEOUT = 3  # Socket will close if no response is received for this many seconds
-
-
-def check_header(header: bytes,
-                 expected_length: int,
-                 expected_secret: int) -> bool:
-    """
-        Check to make sure we got all the values we expected in the header
-
-        :return: A boolean representing whether the header was valid
-    """
-    assert len(header) == 12  # Sanity check that we supplied the correct values
-
-    # Ensure payload is requested length
-    if int.from_bytes(header[:4], byteorder='big') != expected_length:
-        print ("expected length wrong")
-        return False
-
-    # Ensure secret code is correct
-    if int.from_bytes(header[4:8], byteorder='big') != expected_secret:
-        print ("expected secret wrong")
-        return False
-
-    # Ensure client sending is always step 1
-    if int.from_bytes(header[8:10], byteorder='big') != 1:
-        print ("expected step wrong")
-        return False
-
-    return True
 
 
 def stage_a():
@@ -49,6 +38,7 @@ def stage_a():
         - student_id: The student id of the client to ensure we're getting the
           same messages
     """
+    
     # Create UDP socket
     listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -59,16 +49,20 @@ def stage_a():
         # Receive a single message
         message, client_addr = listener.recvfrom(24)
 
-        if check_header(message[:12], expected_length=len(b'hello world\0'), expected_secret=0):
-            num, length, udp_port, secret_a = randint(3, 20), randint(10, 100), randint(12236, 15000), randint(0, 256)
+        if check_header(message[:12],
+                        expected_length=len(b'hello world\0'),
+                        expected_secret=0):
+            num, length, udp_port, secret_a = randint(3, 20), randint(
+                10, 100), randint(12236, 15000), randint(0, 256)
 
             student_id = int.from_bytes(message[10:12], byteorder='big')
+            print("Stage A, student id:", student_id)
 
-            ack = generate_header(16, 0, step=2, student_id=student_id) \
-                  + num.to_bytes(4, byteorder='big') \
-                  + length.to_bytes(4, byteorder='big') \
-                  + udp_port.to_bytes(4, byteorder='big') \
-                  + secret_a.to_bytes(4, byteorder='big')
+            ack = generate_header(16, 0, 2, student_id) \
+                + num.to_bytes(4, byteorder='big') \
+                + length.to_bytes(4, byteorder='big') \
+                + udp_port.to_bytes(4, byteorder='big') \
+                + secret_a.to_bytes(4, byteorder='big')
 
             listener.sendto(ack, client_addr)
             print ("Received part a request from student id", student_id)
@@ -99,7 +93,7 @@ def stage_b(num, length, udp_port, secret_a, student_id):
             print('badly formatted header')
             break
 
-        # Payload: First 4 bytes contains  integer identifying the packet.
+        # Payload: First 4 bytes contains integer identifying the packet.
         # The first packet should have this identifier set to 0,
         # while the last packet should have its counter set to num-1
         first_4_bytes = int.from_bytes(data[12:16], byteorder="big")
@@ -124,13 +118,13 @@ def stage_b(num, length, udp_port, secret_a, student_id):
             iteration += 1
 
         if iteration == num:
-            # All num packets were received. Send tcp port number, and a secretB.
+            # All num packets were received. Send tcp port number, and a
+            # secretB.
             secret_b = randint(0, 500)
             tcp_port = randint(1024, 65353)
             message = generate_header(4, secret_a, 2, student_id) \
-                      + tcp_port.to_bytes(4, byteorder='big') \
-                      + secret_b.to_bytes(4, byteorder='big')
-
+                + tcp_port.to_bytes(4, byteorder='big') \
+                + secret_b.to_bytes(4, byteorder='big')
 
             # Create TCP socket
             listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -150,11 +144,12 @@ def stage_c(tcp_port: int, secret_b: int, student_id: int, listener):
     :param tcp_port: An integer representing the TCP port to connect to on the server.
     :param secret_b: An integer representing a secret key to be included in the packet headers.
     """
-    print ("Stage C, student id:", student_id)
+    print("Stage C, student id:", student_id)
 
     while True:
         try:
             connection, address = listener.accept()
+            print(f"New connection with {address[0]} at TCP port {address[1]}")
 
             # Send data back to the client
             num2, len2, secret_c, c = randint(3, 20), randint(10, 100), randint(0, 256), choice(ascii_letters)
@@ -163,19 +158,19 @@ def stage_c(tcp_port: int, secret_b: int, student_id: int, listener):
                        + len2.to_bytes(4, byteorder='big') \
                        + secret_c.to_bytes(4, byteorder='big') \
                        + ord(c).to_bytes(1, byteorder='big')
-            response = pad_packet(response, len(response))
+            response = pad_packet(response)
             connection.send(response)
 
             # Call Stage D after successful conversation, not closing socket
             stage_d(num2, len2, secret_c, c, student_id, connection)
 
-        except:
+        except BaseException:
             # Close the connection
             listener.close()
 
 
 def stage_d(num2, len2, secret_c, c, student_id, connection):
-    print ("Stage D, student id:", student_id)
+    print("Stage D, student id:", student_id)
     packets_received = 0
     valid = True
     while packets_received < num2:
@@ -184,14 +179,15 @@ def stage_d(num2, len2, secret_c, c, student_id, connection):
         if check_header(msg[:12], len2, secret_c):
             packets_received += 1
             valid &= msg[12:] != c * len2
-            if not valid: break
+            if not valid:
+                break
         else:
             print("Client message was not formatted correctly")
 
     if valid:
         secret_d = randint(0, 256)
         ack = generate_header(4, secret_c, step=2, student_id=student_id) \
-              + secret_d.to_bytes(4, byteorder='big')
+            + secret_d.to_bytes(4, byteorder='big')
         connection.send(ack)
     else:
         print("Client message was not formatted correctly")

@@ -176,7 +176,7 @@ def stage_d(num2, len2, secret_c, c, student_id, connection):
     packets_received = 0
     valid = True
     while packets_received < num2:
-        padding = 4 - (len2 % 4)
+        padding = 0 if (len2 % 4 == 0 ) else 4 - (len2 % 4)
         msg = connection.recv(12 + len2 + padding)  # Header plus length
         if check_header(msg[:12], len2, secret_c):
             packets_received += 1

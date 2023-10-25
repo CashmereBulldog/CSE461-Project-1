@@ -3,15 +3,17 @@
 client.py: A Python script for a network communication client.
 
 This script contains functions and logic for a network communication client that connects to a
-server on the address "attu2.cs.washington.edu" and performs a series of stages involving UDP and
+server on the address passed into the first argument and performs a series of stages involving UDP and
 TCP communication. The stages include sending UDP packets, receiving acknowledgments, and extracting
 various pieces of information from server responses.
 
 Authors: mchris02@uw.edu, danieb36@uw.edu, rhamilt@uw.edu
 Date: 10-25-23
 """
+from asyncio import Timeout
 import socket
 import sys
+from time import sleep
 sys.path.append("..")
 import select
 #from src import generate_header, pad_packet, BIND_PORT
@@ -20,7 +22,7 @@ from utils import generate_header, pad_packet, BIND_PORT
 ATTU_SERVER_ADDR = "attu2.cs.washington.edu"
 STUDENT_ID = 857
 MAXIMUM_TIMEOUT = 5
-MAXIMUM_TIMEOUT_STAGE_B = 0.5
+MAXIMUM_TIMEOUT_STAGE_B = 0.5  # Maximum time client will wait for an ack from server before sending new one
 
 
 def stage_a(address):
@@ -47,20 +49,27 @@ def stage_a(address):
     packet = generate_header(len(txt), 0, 1, STUDENT_ID) + txt
 
     # Create new socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # Send a packet to the given port
-    bytes_sent = 0
-    while bytes_sent == 0:
-        bytes_sent = sock.sendto(packet, (address, BIND_PORT))
+    try:
+        sock_a = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    except socket.error as e: 
+        print ("Error creating socket: %s" % e) 
+        sys.exit(1)
+    
+    # Send the packet to the server
+    try:
+        sock_a.sendto(packet, (address, BIND_PORT))
+    except socket.error:
+        print("Error occured while sending packet")
+        sock_a.close()
+        return None, None, None, None
 
     # Wait for a response back
-    ready = select.select([sock], [], [], MAXIMUM_TIMEOUT)
+    ready = select.select([sock_a], [], [], MAXIMUM_TIMEOUT)
     response_received = False
     while not response_received:
         if ready[0]:
             response_received = True
-            result = sock.recv(28)
+            result = sock_a.recv(28)
             num = int.from_bytes(result[12:16], byteorder='big')
             length = int.from_bytes(result[16:20], byteorder='big')
             udp_port = int.from_bytes(result[20:24], byteorder='big')
@@ -72,8 +81,8 @@ def stage_a(address):
 
     # Close socket
     print("***** STAGE A *****\n")
-    sock.close()
-    return (num, length, udp_port, secret_a)
+    sock_a.close()
+    return num, length, udp_port, secret_a
 
 def stage_b(address, num, length, udp_port, secret_a):
     """ Stage B for Part 1
@@ -96,7 +105,11 @@ def stage_b(address, num, length, udp_port, secret_a):
     print("***** STAGE B *****")
 
     # Create new socket
-    sock_b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock_b = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    except socket.error as e: 
+        print ("Error creating socket: %s" % e) 
+        sys.exit(1)
 
     # Send num packets
     for i in range(num):
@@ -167,9 +180,22 @@ def stage_c(address, tcp_port):
     print("***** STAGE C *****")
     num2, len2, secret_c, c = None, None, None, None
 
-    # Connect socket
-    sock_c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock_c.connect((address, tcp_port))
+    # Create new TCP socket
+    try:
+        sock_c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    except socket.error as e: 
+        print ("Error creating socket: %s" % e) 
+        sys.exit(1)
+    
+    # Connect to server
+    try: 
+        sock_c.connect((address, tcp_port))
+    except socket.gaierror as e: 
+        print ("Address-related error connecting to server: %s" % e) 
+        sys.exit(1) 
+    except socket.error as e: 
+        print ("Connection error: %s" % e) 
+        sys.exit(1)
 
     ready = select.select([sock_c], [], [], MAXIMUM_TIMEOUT)
     if ready[0]:

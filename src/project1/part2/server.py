@@ -41,15 +41,22 @@ def stage_a():
           same messages
     """
     
+    print("Starting up server")
     # Create UDP socket
-    listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # Bind to address and IP
-    listener.bind(("localhost", BIND_PORT))
+    try:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        
+        # Bind to address and IP
+        listener.bind(("localhost", BIND_PORT))
+    except socket.error as e: 
+        print ("Error creating socket: %s" % e) 
+        sys.exit(1)
 
     while True:
+        print("Waiting for responses")
         # Receive a single message
         message, client_addr = listener.recvfrom(24)
+        print(f"Received message from client {client_addr}")
 
         if check_header(message[:12],
                         expected_length=len(b'hello world\0'),
@@ -70,17 +77,25 @@ def stage_a():
             print ("Received part a request from student id", student_id)
             new_thread = threading.Thread(target=stage_b, args=(num, length, udp_port, secret_a, student_id))
             new_thread.start()
+            new_thread.join()
         else:
             print("Client message was not formatted correctly")
 
 
 def stage_b(num, length, udp_port, secret_a, student_id):
     print("Stage B, student id:", student_id)
-    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Create UDP socket
+    try:
+        server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        server.settimeout(MAXIMUM_TIMEOUT)
+        
+        # Bind to address and IP
+        server.bind(("localhost", udp_port))
+    except socket.error as e: 
+        print ("Error creating socket: %s" % e) 
+        sys.exit(1)
 
-    # Bind to address and IP
-    server.bind(("localhost", udp_port))
-
+    secret_b, tcp_port = None, None
     iteration = 0
     while iteration < num:
         padding = 4 - (length % 4)
@@ -127,14 +142,23 @@ def stage_b(num, length, udp_port, secret_a, student_id):
             message = generate_header(4, secret_a, 2, student_id) \
                 + tcp_port.to_bytes(4, byteorder='big') \
                 + secret_b.to_bytes(4, byteorder='big')
-
+            
             # Create TCP socket
-            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                listener.settimeout(MAXIMUM_TIMEOUT)
+                
+                # Bind to address/port and listen for incoming connections
+                listener.bind(("localhost", tcp_port))
+                listener.listen(MAXIMUM_TIMEOUT)
+                print("Listening on port", tcp_port)
+                
+                # Send client message with tcp port info
+                server.sendto(message, client_addr)
+            except socket.error as e: 
+                print ("Error creating socket: %s" % e) 
+                sys.exit(1)
 
-            # Bind to address and IP
-            listener.bind(("localhost", tcp_port))
-            listener.listen(MAXIMUM_TIMEOUT)
-            server.sendto(message, client_addr)
             stage_c(tcp_port, secret_b, student_id, listener)
 
 
@@ -165,10 +189,12 @@ def stage_c(tcp_port: int, secret_b: int, student_id: int, listener):
 
             # Call Stage D after successful conversation, not closing socket
             stage_d(num2, len2, secret_c, c, student_id, connection)
+            break
 
         except BaseException:
-            # Close the connection
+            print("Closing tcp listener")
             listener.close()
+            break
 
 
 def stage_d(num2, len2, secret_c, c, student_id, connection):
@@ -200,7 +226,7 @@ def stage_d(num2, len2, secret_c, c, student_id, connection):
 
 
 def main():
-    """ Main function that calls the stages for the server """
+    """ Main function that calls the stage a for the server. Threads are split from there"""
     stage_a()
 
 

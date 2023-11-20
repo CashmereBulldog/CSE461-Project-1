@@ -39,6 +39,11 @@ class Part3Controller(object):
         # send it messages!
         self.connection = connection
 
+        arp_new_fm = of.ofp_flow_mod()
+        arp_new_fm.match = of.ofp_match(dl_type=0x0806)
+        arp_new_fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(arp_new_fm)
+
         # This binds our PacketIn event listener
         connection.addListeners(self)
         # use the dpid to figure out what switch is being created
@@ -57,24 +62,105 @@ class Part3Controller(object):
             exit(1)
 
     def s1_setup(self):
-        # put switch 1 rules here
-        pass
+        h10_fm = of.ofp_flow_mod()
+        h10_fm.match = of.ofp_match(dl_type=0x0800)
+        h10_fm.match.nw_dst = SUBNETS["h10"]
+        h10_fm.actions.append(of.ofp_action_output(port=10))
+        self.connection.send(h10_fm)
+
+        from_h10_fm = of.ofp_flow_mod()
+        from_h10_fm.match = of.ofp_match(dl_type=0x0800)
+        from_h10_fm.match.nw_src = SUBNETS["h10"]
+        from_h10_fm.actions.append(of.ofp_action_output(port=20))
+        self.connection.send(from_h10_fm)
 
     def s2_setup(self):
         # put switch 2 rules here
-        pass
+        h20_fm = of.ofp_flow_mod()
+        h20_fm.match = of.ofp_match(dl_type=0x0800)
+        h20_fm.match.nw_src = SUBNETS["h20"]
+        h20_fm.actions.append(of.ofp_action_output(port=20))
+        self.connection.send(h20_fm)
+
+        from_h20_fm = of.ofp_flow_mod()
+        from_h20_fm.match = of.ofp_match(dl_type=0x0800)
+        from_h20_fm.match.nw_src = SUBNETS["h20"]
+        from_h20_fm.actions.append(of.ofp_action_output(port=10))
+        self.connection.send(from_h20_fm)
 
     def s3_setup(self):
+        '''
         # put switch 3 rules here
-        pass
+        h30_fm = of.ofp_flow_mod()
+        h30_fm.match.nw_dst = SUBNETS["h30"]
+        h30_fm.actions.append(of.ofp_action_output(port=30))
+        self.connection.send(h30_fm)
+
+        from_h30_fm = of.ofp_flow_mod()
+        from_h30_fm.match.nw_src = SUBNETS["h30"]
+        from_h30_fm.actions.append(of.ofp_action_output(port=10))
+        self.connection.send(from_h30_fm)
+        '''
 
     def cores21_setup(self):
-        # put core switch rules here
-        pass
+        # Don't allow icmp traffic from hnotrust
+        '''
+        icmp_notrust_fm = of.ofp_flow_mod()
+        icmp_notrust_fm.match = of.ofp_match(dl_type=0x0800)
+        icmp_notrust_fm.match.nw_proto = 1
+        icmp_notrust_fm.match.nw_src = SUBNETS["hnotrust"]
+        icmp_notrust_fm.actions.append(of.ofp_action_output(port=of.OFPP_NONE))
+        self.connection.send(icmp_notrust_fm)
+
+        ip_hnotrust_fm = of.ofp_flow_mod()
+        ip_hnotrust_fm.match.nw_dst = SUBNETS["hnotrust"]
+        ip_hnotrust_fm.actions.append(of.ofp_action_output(port=1))
+        self.connection.send(ip_hnotrust_fm)
+        '''
+
+        ip_h10_fm = of.ofp_flow_mod()
+        ip_h10_fm.match = of.ofp_match(dl_type=0x0800)
+        ip_h10_fm.match.nw_dst = SUBNETS["h10"]
+        ip_h10_fm.actions.append(of.ofp_action_output(port=10))
+        self.connection.send(ip_h10_fm)
+
+        ip_h20_fm = of.ofp_flow_mod()
+        ip_h20_fm.match = of.ofp_match(dl_type=0x0800)
+        ip_h20_fm.match.nw_dst = SUBNETS["h20"]
+        ip_h20_fm.actions.append(of.ofp_action_output(port=20))
+        self.connection.send(ip_h20_fm)
+
+        '''
+        ip_h30_fm = of.ofp_flow_mod()
+        ip_h30_fm.match.nw_dst = SUBNETS["h30"]
+        ip_h30_fm.actions.append(of.ofp_action_output(port=30))
+        self.connection.send(ip_h30_fm)
+
+        ip_dc_fm = of.ofp_flow_mod()
+        ip_dc_fm.match.nw_dst = SUBNETS["serv1"]
+        ip_dc_fm.actions.append(of.ofp_action_output(port=31))
+        self.connection.send(ip_dc_fm)
+        '''
 
     def dcs31_setup(self):
+        '''
         # put datacenter switch rules here
-        pass
+        icmp_notrust_fm = of.ofp_flow_mod()
+        icmp_notrust_fm.match = of.ofp_match(dl_type=0x0800)
+        icmp_notrust_fm.match.nw_src = SUBNETS["hnotrust"]
+        icmp_notrust_fm.actions.append(of.ofp_action_output(port=of.OFPP_NONE))
+        self.connection.send(icmp_notrust_fm)
+
+        h31_fm = of.ofp_flow_mod()
+        h31_fm.match.nw_dst = SUBNETS["serv1"]
+        h31_fm.actions.append(of.ofp_action_output(port=31))
+        self.connection.send(h31_fm)
+
+        from_h31_fm = of.ofp_flow_mod()
+        from_h31_fm.match.nw_src = SUBNETS["serv1"]
+        from_h31_fm.actions.append(of.ofp_action_output(port=10))
+        self.connection.send(from_h31_fm)
+        '''
 
     # used in part 4 to handle individual ARP packets
     # not needed for part 3 (USE RULES!)

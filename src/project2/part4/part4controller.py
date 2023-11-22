@@ -38,6 +38,14 @@ class Part4Controller(object):
         # Keep track of the connection to the switch so that we can
         # send it messages!
         self.connection = connection
+        
+        arp_fm = of.ofp_flow_mod()
+        arp_fm.match = of.ofp_match(dl_type=0x0806)
+        arp_fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(arp_fm)
+        
+        # Table for storing MAC to ports
+        self.mac_to_port = {}
 
         # This binds our PacketIn event listener
         connection.addListeners(self)
@@ -57,24 +65,38 @@ class Part4Controller(object):
             exit(1)
 
     def s1_setup(self):
-        # put switch 1 rules here
-        pass
+        fm = of.ofp_flow_mod()
+        fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(fm)
 
     def s2_setup(self):
-        # put switch 2 rules here
-        pass
+        fm = of.ofp_flow_mod()
+        fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(fm)
 
     def s3_setup(self):
-        # put switch 3 rules here
-        pass
+        fm = of.ofp_flow_mod()
+        fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(fm)
 
     def cores21_setup(self):
-        # put core switch rules here
-        pass
+        notrust_fm = of.ofp_flow_mod()
+        notrust_fm.match = of.ofp_match(dl_type=0x0800)
+        notrust_fm.match.nw_proto = 1
+        notrust_fm.match.nw_src = SUBNETS["hnotrust"]
+        notrust_fm.actions.append(of.ofp_action_output(port=0))
+        self.connection.send(notrust_fm)
 
     def dcs31_setup(self):
-        # put datacenter switch rules here
-        pass
+        notrust_fm = of.ofp_flow_mod()
+        notrust_fm.match = of.ofp_match(dl_type=0x0800)
+        notrust_fm.match.nw_src = SUBNETS["hnotrust"]
+        notrust_fm.actions.append(of.ofp_action_output(port=0))
+        self.connection.send(notrust_fm)
+
+        fm = of.ofp_flow_mod()
+        fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(fm)
 
     # used in part 4 to handle individual ARP packets
     # not needed for part 3 (USE RULES!)
@@ -101,6 +123,14 @@ class Part4Controller(object):
         print(
             "Unhandled packet from " + str(self.connection.dpid) + ":" + packet.dump()
         )
+        
+        # If MAC not in look-up table
+        if packet.src not in self.mac_to_port:
+            print(str(packet.src) + " written under" + str(packet_in.in_port))
+            self.mac_to_port[packet.src] = packet_in.in_port
+        # If MAC is in look-up table
+        if packet.dst in self.mac_to_port:
+            self.resend_packet(packet_in, self.mac_to_port[packet.dst])
 
 
 def launch():

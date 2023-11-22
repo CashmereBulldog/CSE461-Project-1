@@ -84,9 +84,35 @@ class Part3Controller(object):
         notrust_fm.actions.append(of.ofp_action_output(port=0))
         self.connection.send(notrust_fm)
 
-        fm = of.ofp_flow_mod()
-        fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        self.connection.send(fm)
+        h10_fm = of.ofp_flow_mod()
+        h10_fm.match = of.ofp_match(dl_type=0x0800)
+        h10_fm.match.nw_dst = SUBNETS["h10"]
+        h10_fm.actions.append(of.ofp_action_output(port=1))
+        self.connection.send(h10_fm)
+
+        h20_fm = of.ofp_flow_mod()
+        h20_fm.match = of.ofp_match(dl_type=0x0800)
+        h20_fm.match.nw_dst = SUBNETS["h20"]
+        h20_fm.actions.append(of.ofp_action_output(port=2))
+        self.connection.send(h20_fm)
+
+        h30_fm = of.ofp_flow_mod()
+        h30_fm.match = of.ofp_match(dl_type=0x0800)
+        h30_fm.match.nw_dst = SUBNETS["h30"]
+        h30_fm.actions.append(of.ofp_action_output(port=3))
+        self.connection.send(h30_fm)
+
+        serv1_fm = of.ofp_flow_mod()
+        serv1_fm.match = of.ofp_match(dl_type=0x0800)
+        serv1_fm.match.nw_dst = SUBNETS["serv1"]
+        serv1_fm.actions.append(of.ofp_action_output(port=4))
+        self.connection.send(serv1_fm)
+
+        hnotrust_fm = of.ofp_flow_mod()
+        hnotrust_fm.match = of.ofp_match(dl_type=0x0800)
+        hnotrust_fm.match.nw_dst = SUBNETS["hnotrust"]
+        hnotrust_fm.actions.append(of.ofp_action_output(port=5))
+        self.connection.send(hnotrust_fm)
 
     def dcs31_setup(self):
         notrust_fm = of.ofp_flow_mod()

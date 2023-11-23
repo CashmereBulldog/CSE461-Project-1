@@ -6,6 +6,9 @@
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.addresses import IPAddr, IPAddr6, EthAddr
+from pox.lib.packet.arp import arp
+from pox.lib.packet.ethernet import ethernet
+from collections import defaultdict
 
 log = core.getLogger()
 
@@ -39,13 +42,14 @@ class Part4Controller(object):
         # send it messages!
         self.connection = connection
         
-        arp_fm = of.ofp_flow_mod()
-        arp_fm.match = of.ofp_match(dl_type=0x0806)
-        arp_fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        self.connection.send(arp_fm)
+        ipv6_fm = of.ofp_flow_mod()
+        ipv6_fm.match = of.ofp_match(dl_type=0x0886)
+        ipv6_fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(ipv6_fm)
         
         # Table for storing MAC to ports
-        self.mac_to_port = {}
+        self.ip_to_port = defaultdict(int)
+        self.port_to_mac = {}
 
         # This binds our PacketIn event listener
         connection.addListeners(self)
@@ -115,6 +119,8 @@ class Part4Controller(object):
         """
 
         packet = event.parsed  # This is the parsed packet data.
+        if packet.type == packet.IPV6_TYPE:
+            return
         if not packet.parsed:
             log.warning("Ignoring incomplete packet")
             return
@@ -123,14 +129,41 @@ class Part4Controller(object):
         print(
             "Unhandled packet from " + str(self.connection.dpid) + ":" + packet.dump()
         )
-        
-        # If MAC not in look-up table
-        if packet.src not in self.mac_to_port:
-            print(str(packet.src) + " written under" + str(packet_in.in_port))
-            self.mac_to_port[packet.src] = packet_in.in_port
-        # If MAC is in look-up table
-        if packet.dst in self.mac_to_port:
-            self.resend_packet(packet_in, self.mac_to_port[packet.dst])
+
+        src_ip, dst_ip = "", ""
+
+        if not packet.type == packet.ARP_TYPE:
+            # Get the ip address information
+            ip_packet = packet.payload
+            src_ip = ip_packet.srcip
+            dst_ip = ip_packet.dstip
+        else:
+            # Write arp reply if the packet was an arp request
+            arp_reply = arp()
+            arp_reply.hwsrc = EthAddr('de:ad:be:ef:ca:fe')
+            arp_reply.hwdst = packet.src
+            arp_reply.opcode = arp.REPLY
+            arp_reply.protosrc = packet.payload.protodst
+            arp_reply.protodst = packet.payload.protosrc
+            src_ip = packet.payload.protosrc
+            dst_ip = packet.payload.protodst
+            ether = ethernet()
+            ether.type = ethernet.ARP_TYPE
+            ether.dst = packet.src
+            ether.src = EthAddr('de:ad:be:ef:ca:fe')
+            ether.payload = arp_reply
+            self.resend_packet(ether.pack(), packet_in.in_port)
+
+        # If IP not in look-up table
+        if src_ip not in self.ip_to_port:
+            self.ip_to_port[str(src_ip)] = packet_in.in_port
+            self.port_to_mac[packet_in.in_port] = packet.src
+
+        # If IP is in look-up table
+        if str(dst_ip) in self.ip_to_port.keys() and not packet.type == packet.ARP_TYPE:
+            # Put the actual MAC address into the packet so the dst host accepts it
+            packet.dst = self.port_to_mac[self.ip_to_port[str(dst_ip)]]
+            self.resend_packet(packet.pack(), self.ip_to_port[str(dst_ip)])
 
 
 def launch():

@@ -159,8 +159,10 @@ def bufferbloat():
         # do the measurement (say) 3 times.
         times = []
         for i in range(3):
-            Popen("curl -o /dev/null -s -w %{time_total} " + h1.IP(), shell=True)
-            
+            process = Popen("curl -o /dev/null -s -w %{time_total} " + h1.IP() + "> ./time_values.txt", shell=True)
+            with open("./time_values.txt", "r") as f:
+                print(f.read().strip())
+                times.append(int(f.read().strip()))
         average = np.mean(times)
         std_dev = np.std(times)
         print("Average: {}\nStandard Deviation: {}".format(average, std_dev))

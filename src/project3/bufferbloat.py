@@ -16,6 +16,7 @@ from monitor import monitor_qlen
 import sys
 import os
 import math
+import numpy as np
 
 parser = ArgumentParser(description="Bufferbloat tests")
 parser.add_argument('--bw-host', '-B',
@@ -62,13 +63,17 @@ class BBTopo(Topo):
     "Simple topology for bufferbloat experiment."
 
     def build(self, n=2):
-        # TODO: create two hosts
+        # Create two hosts
+        h1 = self.addHost("h1")
+        h2 = self.addHost("h2")
 
         # Here I have created a switch.  If you change its name, its
         # interface names will change from s0-eth1 to newname-eth1.
-        switch = self.addSwitch('s0')
+        s0 = self.addSwitch('s0')
 
-        # TODO: Add links with appropriate characteristics
+        # Add links with appropriate characteristics
+        self.addLink(h1, s0, bw=args.bw_host)  # 1 Gbps link
+        self.addLink(h2, s0, bw=args.bw_net)   # 1.5 Mbps link
 
 # Simple wrappers around monitoring utilities.  You are welcome to
 # contribute neatly written (using classes) monitoring scripts for
@@ -85,7 +90,7 @@ def start_iperf(net):
 
     # TODO: Start the iperf client on h1.  Ensure that you create a
     # long lived TCP flow.
-    # client = ... 
+    client = h1.popen(f'iperf -c {h2.IP()} -t {args.time}')
 
 def start_qmon(iface, interval_sec=0.1, outfile="q.txt"):
     monitor = Process(target=monitor_qlen,
@@ -101,7 +106,10 @@ def start_ping(net):
     # Hint: Use host.popen(cmd, shell=True).  If you pass shell=True
     # to popen, you can redirect cmd's output using shell syntax.
     # i.e. ping ... > /path/to/ping.
-    pass
+    h1 = net.get('h1')
+    h2 = net.get('h2')
+    
+    h1.popen(f'ping -i 0.1 {h2.IP()} > ./ping.txt', shell=True)
 
 def start_webserver(net):
     h1 = net.get('h1')
@@ -131,7 +139,9 @@ def bufferbloat():
                       outfile='%s/q.txt' % (args.dir))
 
     # TODO: Start iperf, webservers, etc.
-    # start_iperf(net)
+    start_iperf(net)
+    start_ping(net)
+    start_webserver(net)
 
     # TODO: measure the time it takes to complete webpage transfer
     # from h1 to h2 (say) 3 times.  Hint: check what the following
@@ -143,9 +153,17 @@ def bufferbloat():
 
     # Hint: have a separate function to do this and you may find the
     # loop below useful.
+    h1 = net.get('h1')
     start_time = time()
     while True:
         # do the measurement (say) 3 times.
+        times = []
+        for i in range(3):
+            Popen("curl -o /dev/null -s -w %{time_total} " + net.h1.IP(), shell=True)
+            
+        average = np.mean(times)
+        std_dev = np.std(times)
+        print("Average: {}\nStandard Deviation: {}".format(average, std_dev))
         sleep(5)
         now = time()
         delta = now - start_time

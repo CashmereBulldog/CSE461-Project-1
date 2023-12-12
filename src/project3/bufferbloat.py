@@ -154,15 +154,22 @@ def bufferbloat():
     # Hint: have a separate function to do this and you may find the
     # loop below useful.
     h1 = net.get('h1')
+    h2 = net.get('h2')
     start_time = time()
     while True:
         # do the measurement (say) 3 times.
         times = []
+        print("h1.IP: " + h1.IP())
+        print("h2.IP: " + h2.IP())
         for i in range(3):
-            process = Popen("curl -o /dev/null -s -w %{time_total} " + h1.IP() + " > ./time_values.txt", shell=True)
+            process = h2.popen("curl -o /dev/null -s -w %{time_total} " + h1.IP() + " > ./time_values.txt", shell=True)
             with open("./time_values.txt", "r") as f:
-                print(f.read().strip())
-                times.append(int(f.read().strip()))
+                text_value = f.read().strip()
+                if text_value != '':
+                    times.append(float(text_value))
+                    print(f'Recorded time was {text_value}s for iteration {i}')
+                else:
+                    print(f"Recorded time was '' for iteration {i}")
         average = np.mean(times)
         std_dev = np.std(times)
         print("Average: {}\nStandard Deviation: {}".format(average, std_dev))

@@ -159,7 +159,7 @@ def bufferbloat():
         # do the measurement (say) 3 times.
         times = []
         for i in range(3):
-            process = Popen("curl -o /dev/null -s -w %{time_total} " + h1.IP() + "> ./time_values.txt", shell=True)
+            process = Popen("curl -o /dev/null -s -w %{time_total} " + h1.IP() + " > ./time_values.txt", shell=True)
             with open("./time_values.txt", "r") as f:
                 print(f.read().strip())
                 times.append(int(f.read().strip()))

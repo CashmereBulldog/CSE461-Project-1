@@ -8,7 +8,7 @@ bwnet=1.5
 # TODO: If you want the RTT to be 20ms what should the delay on each
 # link be?  Set this value correctly.
 delay=5
-cong="reno"
+cong="bbr" # TODO: check if this is correct
 
 iperf_port=5001
 

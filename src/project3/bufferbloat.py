@@ -1,5 +1,5 @@
 from mininet.topo import Topo
-from mininet.node import CPULimitedHost
+from mininet.node import CPULimitedHost, OVSBridge
 from mininet.link import TCLink
 from mininet.net import Mininet
 from mininet.log import lg, info
@@ -69,7 +69,7 @@ class BBTopo(Topo):
 
         # Here I have created a switch.  If you change its name, its
         # interface names will change from s0-eth1 to newname-eth1.
-        s0 = self.addSwitch('s0')
+        s0 = self.addSwitch('s0', cls=OVSBridge)
 
         # Add links with appropriate characteristics
         self.addLink(h1, s0, bw=args.bw_host)  # 1 Gbps link
@@ -122,7 +122,7 @@ def bufferbloat():
         os.makedirs(args.dir)
     os.system("sysctl -w net.ipv4.tcp_congestion_control=%s" % args.cong)
     topo = BBTopo()
-    net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink)
+    net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, controller=None)
     net.start()
     # This dumps the topology and how nodes are interconnected through
     # links.
@@ -159,7 +159,7 @@ def bufferbloat():
         # do the measurement (say) 3 times.
         times = []
         for i in range(3):
-            Popen("curl -o /dev/null -s -w %{time_total} " + net.h1.IP(), shell=True)
+            Popen("curl -o /dev/null -s -w %{time_total} " + h1.IP(), shell=True)
             
         average = np.mean(times)
         std_dev = np.std(times)

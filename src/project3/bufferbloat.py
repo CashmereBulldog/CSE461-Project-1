@@ -162,14 +162,13 @@ def bufferbloat():
         print("h1.IP: " + h1.IP())
         print("h2.IP: " + h2.IP())
         for i in range(3):
-            process = h2.popen("curl -o /dev/null -s -w %{time_total} " + h1.IP() + " > ./time_values.txt", shell=True)
-            with open("./time_values.txt", "r") as f:
-                text_value = f.read().strip()
-                if text_value != '':
-                    times.append(float(text_value))
-                    print(f'Recorded time was {text_value}s for iteration {i}')
-                else:
-                    print(f"Recorded time was '' for iteration {i}")
+            process = h2.popen("curl -o /dev/null -s -w %{time_total} " + h1.IP(), shell=True)
+            text_value = process.stdout.read().strip()
+            if text_value != '':
+                times.append(float(text_value))
+                print(f'Recorded time was {text_value}s for iteration {i}')
+            else:
+                print(f"Recorded time was '' for iteration {i}")
         average = np.mean(times)
         std_dev = np.std(times)
         print("Average: {}\nStandard Deviation: {}".format(average, std_dev))

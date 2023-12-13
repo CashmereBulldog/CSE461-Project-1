@@ -8,15 +8,31 @@ Name: Reed Hamilton
 UWNetID: rhamilt
 
 Instructions to reproduce the results:
-  TODO
+  Run `sudo ./run.sh && sudo ./run_bbr.sh` for part 2 and 3 respectively.
 
 Answers to the questions:
 Part 2
-  1. TODO
-  2. TODO
-  3. TODO
-  4. TODO
+  1. Q20:
+        Average: 0.17048233333333332
+        Standard Deviation: 0.006810987805662918
+      Q100:
+        Average: 0.890593
+        Standard Deviation: 0.006899520176553369
+  2. With a larger buffer there is more delay since it takes longer for packets to get through.
+      Packets ahead of it in the queue also have to be processed first, which adds to the time.
+  3. Maximum queue length = 1000 packets. About 120ms. Roughly 1000 packets (Each 1.5KB each) for a total of 1500KB (12000 Kb = 12Mb)
+     Thus, we get 12Mb / (100Mb/s) = .12 sec = 120ms
+  4. The RTT roughly follows queue size. As the queue size increases, the RTT increases because of the increased processing time described in Q2.
+  5. To mitigate bufferfloat problem:
+      - Early detection (Explicit Congestion Notification)
+      - RED (Random Early Detection). Packets are dropped automatically if queue size grows to fast.
 Part 3
-  1. TODO
-  2. TODO
-  3. TODO
+  1. Q20:
+        Average: 0.14267466666666667
+        Standard Deviation: 0.0142233239746864
+      Q100:
+        Average: 0.12897133333333333
+        Standard Deviation: 0.0059226588811295035
+  2. Fetch time is now faster for Q100 (instead of part 2, where increased queue size was a slower fetch time)
+  3. Yes, the queue sizes are on average smaller than part 2's. BBR has congestion control that drops packets. Also, RTT is lower on average.
+  4. Yes, the bufferfloat problem is solved since the buffers do not stay full. Congestion is greatly reduced when running BBR.

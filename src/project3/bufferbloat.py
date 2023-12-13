@@ -10,7 +10,6 @@ from subprocess import Popen, PIPE
 from time import sleep, time
 from multiprocessing import Process
 from argparse import ArgumentParser
-
 from monitor import monitor_qlen
 
 import sys
@@ -72,8 +71,8 @@ class BBTopo(Topo):
         s0 = self.addSwitch('s0', cls=OVSBridge)
 
         # Add links with appropriate characteristics
-        self.addLink(h1, s0, bw=args.bw_host)  # 1 Gbps link
-        self.addLink(h2, s0, bw=args.bw_net)   # 1.5 Mbps link
+        self.addLink(h1, s0, bw=args.bw_host, max_queue_size=args.maxq, delay=args.delay, use_htb=True)  # 1 Gbps link
+        self.addLink(h2, s0, bw=args.bw_net, max_queue_size=args.maxq, delay=args.delay, use_htb=True)  # 1.5 Mbps link
 
 # Simple wrappers around monitoring utilities.  You are welcome to
 # contribute neatly written (using classes) monitoring scripts for
